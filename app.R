@@ -1,6 +1,9 @@
 ## app.R ##
 library(shiny)
 library(shinydashboard)
+require(ggplot2)
+require(plyr)
+require(plotly)
 
 ui <- dashboardPage(
   dashboardHeader(title = "Dosage Compensation",titleWidth = 235),
@@ -15,10 +18,22 @@ ui <- dashboardPage(
       # First tab content
       tabItem(tabName = "genome",
               fluidRow(
-                box(plotOutput("plot1", height = 250)),
+                box(
+                  title = "Males Vs Females across different species",
+                  height = 800,
+                  plotlyOutput("genome_plot1")),
                 box(
                   title = "Controls",
-                  sliderInput("slider", "Number of observations:", 1, 100, 50)
+                  sliderInput("lowerT",
+                              "Lower Threshold for Filter(passed as expression > selected value)",
+                              0,
+                              10,
+                              0),
+                  sliderInput("upperlim",
+                              "Upper Limit for Visualization (zoom)",
+                              0,
+                              100000,
+                              1500)
                 )
               )
       ),
@@ -31,6 +46,22 @@ ui <- dashboardPage(
   )
 )
 
-server <- function(input, output) { }
+server <- function(input, output) {
+
+output$genome_plot1 <- renderPlotly({
+	infile <- read.table("data/annotated_normalized_count_map.txt")
+	colnames(infile) <- c("gene","sample","norm_count","species","gender","chrom_num","chrom_name")
+	infile_no_un <- infile[infile$chrom_name != "Un",]
+	ggplot(data = infile_no_un[infile_no_un$norm_count > input$lowerT, ], aes(x = chrom_name,
+                          y = norm_count))+
+	  geom_boxplot()+
+	  xlab("Chromosome")+
+	  ylab("Normalized Count (DESeq's Median of Ratios)")+
+	  coord_cartesian(ylim = c(0,input$upperlim))+
+	  facet_grid(species ~ gender)
+	ggplotly(width = 500, height = 700)
+})
+
+}
 
 shinyApp(ui, server)
